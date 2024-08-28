@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-import time
+import datetime
 import sys
 import termcolor
 from colorama import init, Fore, Style
@@ -26,11 +26,13 @@ print("Received list of ip addresses:" + Fore.GREEN + f"{ip_addresses}")
 # Define the individual IP addresses to scan
 # ip_addresses = ["192.168.240.120", "192.168.240.121", "192.168.240.122"]
 scanned_web_ports_for_ips = dict()
-start_time = time.time()
+
+start_time = datetime.datetime.now()
+print("\nScript elapsed time: " + Fore.GREEN +  f"{str(start_time)}\n")
 
 # Create a directory for each IP address
 for ip in ip_addresses:
-    ip_dir = f"{ip}_scan"
+    ip_dir = f"{ip}"
     os.makedirs(ip_dir, exist_ok=True)
 
     # Create files and folders inside the IP address directory
@@ -50,7 +52,7 @@ for ip in ip_addresses:
     print(nmap_output)
 
     # Save Nmap output to a file
-    nmap_output_file = f"{ip}_scan/scan_output/nmap_{ip}.txt"
+    nmap_output_file = f"{ip}/scan_output/nmap_{ip}.txt"
     with open(nmap_output_file, "w") as f:
         f.write(nmap_output)
 
@@ -58,7 +60,7 @@ for ip in ip_addresses:
 for ip in ip_addresses:
     # Get open web ports from Nmap output
     web_ports = []
-    with open(f"{ip}_scan/scan_output/nmap_{ip}.txt", "r") as f:
+    with open(f"{ip}/scan_output/nmap_{ip}.txt", "r") as f:
         nmap_output = f.read()
         for line in nmap_output.splitlines():
             if "open" in line:
@@ -80,12 +82,12 @@ for ip in ip_addresses:
         print(whatweb_output)
 
         # Save WhatWeb output to a file
-        whatweb_output_file = f"{ip}_scan/scan_output/whatweb_{ip}_{port}.txt"
+        whatweb_output_file = f"{ip}/scan_output/whatweb_{ip}_{port}.txt"
         with open(whatweb_output_file, "w") as f:
             f.write(whatweb_output)
 
-        # Check if the output contains "[404 Not Found]"
-        if "[404 Not Found]" in whatweb_output:
+        # Check if the output contains "[200 OK]"
+        if not "[200 OK]" in whatweb_output:
             removed_web_ports.append(port) 
     
     # Remove ports that not going to be used anymore
@@ -103,28 +105,26 @@ for ip, port_list in scanned_web_ports_for_ips.items():
     for port in port_list:
             
         # Perform Dirb scan with verbose output
-        dirb_scan = subprocess.run(["dirb", f"http://{ip}:{port}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        dirb_scan = subprocess.run(["dirb", f"http://{ip}:{port}", "-o", f"{ip}/scan_output/dirb_{ip}_{port}.txt"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         dirb_output = dirb_scan.stdout.decode("utf-8")
         print(f"Dirb scan output for {ip}:{port}:")
         print(dirb_output)
 
         # Save Dirb output to a file
-        dirb_output_file = f"{ip}_scan/scan_output/dirb_{ip}_{port}.txt"
-        with open(dirb_output_file, "w") as f:
-            f.write(dirb_output)
-
+        dirb_output_file = f"{ip}/scan_output/dirb_{ip}_{port}.txt"
+        
         for line in dirb_output:
             # Check if Dirb output contains WordPress directories
             if "wp-admin" in line or "wp-content" in line or "wp-includes" in line:
                 print(Fore.WHITE + "Wordpress founded. Starting a plug-in scan for: " + Fore.BLUE + f"{ip, port_list}" + Fore.WHITE)
                 # Run WPScan with plugins detection and verbose output
-                wpscan_scan = subprocess.run(["wpscan", "--plugins-detection", f"http://{ip}:{port}", "-v"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                wpscan_scan = subprocess.run(["wpscan", "--url", f"http://{ip}:{port}", "--enumerate", "vp", "--plugins-detection", "aggressive"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 wpscan_output = wpscan_scan.stdout.decode("utf-8")
                 print(f"WPScan output for {ip}:{port}:")
                 print(wpscan_output)
 
                 # Save WPScan output to a file
-                wpscan_output_file = f"{ip}_scan/scan_output/wpscan_{ip}_{port}.txt"
+                wpscan_output_file = f"{ip}/scan_output/wpscan_{ip}_{port}.txt"
                 with open(wpscan_output_file, "w") as f:
                     f.write(wpscan_output)
                 break
@@ -135,11 +135,15 @@ for ip, port_list in scanned_web_ports_for_ips.items():
         # Perform Nikto scan
         nikto_scan = subprocess.run(["nikto", "--url", f"http://{ip}:{port}", "-C", "all"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         nikto_output = nikto_scan.stdout.decode("utf-8")
-        output_file = f"{ip}_scan/scan_output/nikto_{ip}_{port}.txt"
+        output_file = f"{ip}/scan_output/nikto_{ip}_{port}.txt"
         
         with open(output_file, "w") as f:
             f.write(nikto_output)
         print(nikto_output)
 
-end_time = time.time()
-print("\nScript took" + Fore.BLUE +  f"{end_time - start_time:.2f}" + Fore.WHITE + "seconds to run")
+end_time = datetime.datetime.now()
+
+# Calculate the elapsed time
+elapsed_time = end_time - start_time
+
+print("\nScript elapsed time: " + Fore.BLUE +  f"{str(elapsed_time)}")
